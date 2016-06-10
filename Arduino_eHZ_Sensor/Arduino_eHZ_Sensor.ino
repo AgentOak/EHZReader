@@ -1,76 +1,46 @@
 #include <SoftwareSerial.h>
-#include <SML.h>
 /**
- * Arduino_eHZ_Sensor
+ * Arduino EHZ363LA SML Reader
+ * Copyright (C) 2014  Dennis Boysen, Fabian Dellwing, Jan Erik Petersen
  *
- * Implements the DIN EN62056-21 Protocol and SML file format
- * to read power data from energy meters on Arduino Uno.
- * For other energy meters and arduinos changes might be necessary.
- * Modify pins according to your hardware configuration.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- * Copyright (c) 2014 Dennis Boysen, Fabian Dellwing, Jan Erik Petersen
- * Licensed under the GNU General Public License v3.0.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /* ****************************************************************************
  * General constants
  * ****************************************************************************/
 #define LED_PIN 13 // The LED is used for some informative output
-#define LED_ERROR_BLINKTIME 100 // How long the LED should be on/off
+#define LED_HALT_BLINKRATE 100 // How long the LED should blink
 #define PC_BAUDRATE 9600 // Baudrate for PC communication
 
 /* ****************************************************************************
  * EHZ constants are implementation details for the eHZ communication
  * ****************************************************************************/
 #define EHZ_RX_PIN 7
-#define EHZ_TX_PIN 6
+#define EHZ_TX_PIN 6 // Not used actually but for the sake of completeness
 #define EHZ_INVERSE_LOGIC false
-static int EHZ_BAUDRATES[] = { 300, 600, 1200, 2400, 4800, 9600, 19200 }; // Baudrates the EHZ supports, by the ID the EHZ sends.
-#define EHZ_SERIAL_INIT_WAIT 5000 // Time to wait for serial communication to eHZ to initialize
-#define EHZ_IDENTIFICATION_WAIT 5000 // Time to wait for the first signals from the eHZ
-
-/* ****************************************************************************
- * MSG constants are bytes of the DIN EN62056-21 protocol
- * ****************************************************************************/
-#define MSG_START 0x2F // /
-#define MSG_TRANSMISSION_REQUEST 0x3F // ?
-#define MSG_END 0x21 // !
-static char MSG_COMPLETION[] = { 0x0D, 0x0A }; // <CR><LF>
-#define MSG_FRAME_START 0x02 // <STX>
-#define MSG_FRAME_END 0x03 // <ETX>
-
-/* ****************************************************************************
- * SML constants are bytes of the SML file format
- * ****************************************************************************/
-static char SML_START_ESCAPE[] = { 0x1B, 0x1B, 0x1B, 0x1B };
+#define EHZ_BAUDRATE 9600
 
 /* ****************************************************************************
  * Implementation
  * ***************************************************************************/
-SoftwareSerial *ehz;
+#define SML_BUFFER_SIZE 8 // SML Header size is 8, OBIS identifiers are 6
+char smlBuffer[SML_BUFFER_SIZE];
+
+SoftwareSerial *ehz; // Arduino Uno doesn't offer more native serial ports
 
 /**
- * Fail the initialization with a given error message.
- * Prints the error to the PC Serial connection. Halts the execution of the
- * program. Lets the LED blink.
- */
-void initFail(String message)
-{
-	Serial.println("#########################################");
-	Serial.print("Initialization fail: Error after ");
-	Serial.print(millis());
-	Serial.println("ms");
-	Serial.println(message);
-	while(true)
-	{
-		digitalWrite(LED_PIN, HIGH);
-		delay(LED_ERROR_BLINKTIME);
-		digitalWrite(LED_PIN, LOW);
-		delay(LED_ERROR_BLINKTIME);
-	}
-}
-
-/**
- * Reads one character from the eHZ serial connection.
+ * Read one character from the eHZ serial connection.
  * Unlike {@link SoftwareSerial#read()} this is a blocking call:
  * It waits until at least one character is available.
  */
@@ -78,6 +48,21 @@ uint8_t ehzBlockingRead()
 {
 	while (ehz->available() <= 0) {}
 	return ehz->read();
+}
+
+/**
+ * Read one character from eHZ serial connection into the buffer.
+ * The contents will be shifted from right to left (n-1 to 0), that is,
+ * the new data will be placed in buffer[0],
+ * and the leftmost (buffer[n-1]) is discarded.
+ */
+void readIntoBuffer()
+{
+	for (int i = 1; i < SML_BUFFER_SIZE ; i++)
+	{
+		smlBuffer[i - 1] = smlBuffer[i];
+	}
+	smlBuffer[SML_BUFFER_SIZE - 1] = ehzBlockingRead();
 }
 
 void setup()
@@ -88,110 +73,56 @@ void setup()
 	// Initialize communication with PC
 	Serial.begin(PC_BAUDRATE);
 	while (!Serial) {}
-	Serial.println("Thank you for using Arduino_eHZ_Sensor!");
+	Serial.println("Arduino EHZ363LA SML Reader");
+	Serial.println("Copyright (C) 2014  Dennis Boysen, Fabian Dellwing, Jan Erik Petersen");
+	Serial.println();
 
 	// Starting serial connection to eHZ
-	pinMode(EHZ_RX_PIN, INPUT);
-	pinMode(EHZ_TX_PIN, OUTPUT);
 	ehz = new SoftwareSerial(EHZ_RX_PIN, EHZ_TX_PIN, EHZ_INVERSE_LOGIC);
-	ehz->begin(EHZ_BAUDRATES[0]);
-	delay(EHZ_SERIAL_INIT_WAIT);
+	ehz->begin(EHZ_BAUDRATE);
 
-	/* ************************************************************************
-	 * eHZ handshake
-	 * ************************************************************************/
-	// Send SIGN ON
-	ehz->write(MSG_START);
-	ehz->write(MSG_TRANSMISSION_REQUEST);
-	ehz->write(MSG_END);
-	ehz->write(MSG_COMPLETION);
+	// Finally
+	Serial.println("eHZ sensor initialized. Ready to accept data.");
 
-	// Wait for response from the eHZ
-	long startTime = millis();
-	while (ehz->available() <= 0)
-	{
-		if (millis() > startTime + EHZ_IDENTIFICATION_WAIT)
-		{
-			initFail("The eHZ didn't send any data. Is the eHZ cable connected?");
-		}
-	}
-
-	// Receive IDENTIFICATION
-	/*if (ehzBlockingRead() != MSG_START)
-	{
-		initFail("eHZ didn't send expected IDENTIFICATION after SIGN ON");
-	}
-	char manufactorId[] = { ehzBlockingRead(), ehzBlockingRead(), ehzBlockingRead() };
-	char baudrateSent = ehzBlockingRead();
-	if (baudrateSent > sizeof(EHZ_BAUDRATES))
-	{
-		initFail("eHZ sent unknown baudrate identifier");
-	}
-	int baudrate = EHZ_BAUDRATES[baudrateSent];*/
-
-	// TODO: Finish handshake
-
-	Serial.println("Initialization done, connection to eHZ established.");
-
-	// TODO: Calls to other groups initializations?
+	// TODO: Calls to other groups initializations before eHZ communication?
+	// The eHZ could spam the buffer if the initilizations of the other groups
+	// take too long
 }
-
-#define BUFSIZE 16
-char buffer[BUFSIZE];
 
 void loop()
 {
-	/* ************************************************************************
-	 * Continuously reading sensor data and forwarding in to PC serial console
-	 * ************************************************************************/
-	
-	if (ehz->available() > 0)
+	/*
+	 * Shifting the bytes from the serial connection into a buffer is VERY
+	 * error-resistant. Even if the connection is removed for some time,
+	 * the program is able to recover correct communication by ignoring
+	 * all data until an SML header is found.
+	 */
+	// Read and shift the bytes...
+	readIntoBuffer();
+
+	// ...until it is a valid SML header!
+	if (smlBuffer[0] == 0x1B && smlBuffer[1] == 0x1B &&
+	        smlBuffer[2] == 0x1B && smlBuffer[3] == 0x1B &&
+	        smlBuffer[4] == 0x01 && smlBuffer[5] == 0x01 &&
+	        smlBuffer[6] == 0x01 &&  smlBuffer[7] == 0x01)
 	{
-		Serial.print(ehz->available());
-		Serial.print(" ::>");
-		while (ehz->available() > 0)
+		Serial.println("SML HEADER");
+		
+		// Parse the SML
+		long startTime = millis();
+		Serial.print(startTime);
+		Serial.print(" -> ");
+		while (millis() < startTime + 1000)
 		{
-			Serial.print(" ");
-			Serial.print(ehzBlockingRead());
+			if (ehz->available() > 0)
+			{
+				uint8_t c = ehzBlockingRead();
+				Serial.print(" 0x");
+				Serial.print(String(c, HEX));
+			}
 		}
 		Serial.println();
 	}
-	// TODO: Read EN62056-21 packets, parse SML, inform listeners, write to serial
-	
-	/*
-	 * DEBUG 1
-	for (int i = 0; i < BUFSIZE; i++) {
-		char c = ehzBlockingRead();
-		buffer[i] = c;
-		Serial.print(String(c, HEX));
-	}
-	Serial.println();
-	for (int i = 0; i < BUFSIZE; i++) {
-		Serial.print(buffer[i]);
-	}
-	Serial.println();
-	Serial.println();*/
-	
-	/* 
-	 * DEBUG 2
-	ehz->write(MSG_START);
-	ehz->write(MSG_TRANSMISSION_REQUEST);
-	ehz->write(MSG_END);
-	ehz->write(MSG_COMPLETION);
-	
-	long startTime = millis();
-	Serial.print(startTime);
-	Serial.print(" -> ");
-	while (millis() < startTime + 1000)
-	{
-		if (ehz->available() > 0)
-		{
-			uint8_t c = ehzBlockingRead();
-			Serial.print(" 0x");
-			Serial.print(String(c, HEX));
-		}
-	}
-	Serial.println();*/
 }
 
 /* ****************************************************************************
@@ -202,11 +133,3 @@ struct energyMeterData
 	long drawnPower;
 	long currentPower;
 };
-
-/* ****************************************************************************
- * Test using the API
- * ****************************************************************************/
-void test_sensorListener()
-{
-	
-}
