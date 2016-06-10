@@ -1,0 +1,16 @@
+# Normalize as LF in the repository, OS native locally
+* text=auto
+
+.gitignore text
+.gitattributes text
+
+# Source files
+*.ino text
+*.cs text
+*.js text
+*.html text
+*.css text
+
+# Configuration/text files
+*.txt text
+*.config text
