@@ -20,7 +20,6 @@
  * General constants
  * ****************************************************************************/
 #define LED_PIN 13 // The LED is used for some informative output
-#define LED_HALT_BLINKRATE 100 // How long the LED should blink
 #define PC_BAUDRATE 9600 // Baudrate for PC communication
 
 /* ****************************************************************************
@@ -32,10 +31,16 @@
 #define EHZ_BAUDRATE 9600
 
 /* ****************************************************************************
+ * SML constants are bytes of the SML file format
+ * ****************************************************************************/
+static uint8_t SML_HEADER[] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x01, 0x01, 0x01, 0x01 };
+static uint8_t SML_FOOTER[] = { 0x1B, 0x1B, 0x1B, 0x1B, 0x1A };
+
+/* ****************************************************************************
  * Implementation
  * ***************************************************************************/
-#define SML_BUFFER_SIZE 8 // SML Header size is 8, OBIS identifiers are 6
-char smlBuffer[SML_BUFFER_SIZE];
+#define EHZ_BUFFER_SIZE 8 // SML Header size is 8, OBIS identifiers are 6
+uint8_t ehzBuffer[EHZ_BUFFER_SIZE];
 
 SoftwareSerial *ehz; // Arduino Uno doesn't offer more native serial ports
 
@@ -56,13 +61,28 @@ uint8_t ehzBlockingRead()
  * the new data will be placed in buffer[0],
  * and the leftmost (buffer[n-1]) is discarded.
  */
-void readIntoBuffer()
+void ehzReadIntoBuffer()
 {
-	for (int i = 1; i < SML_BUFFER_SIZE ; i++)
+	for (int i = 1; i < EHZ_BUFFER_SIZE; i++)
 	{
-		smlBuffer[i - 1] = smlBuffer[i];
+		ehzBuffer[i - 1] = ehzBuffer[i];
 	}
-	smlBuffer[SML_BUFFER_SIZE - 1] = ehzBlockingRead();
+	ehzBuffer[EHZ_BUFFER_SIZE- 1] = ehzBlockingRead();
+}
+
+/**
+ * Checks if the newest contents of the buffer match the given data.
+ */
+boolean ehzBufferEquals(uint8_t value[])
+{
+	for (int i = sizeof(value) - 1; i >= 0; i--)
+	{
+		if (ehzBuffer[i + (EHZ_BUFFER_SIZE - sizeof(value))] != value[i])
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 void setup()
@@ -82,54 +102,71 @@ void setup()
 	ehz->begin(EHZ_BAUDRATE);
 
 	// Finally
-	Serial.println("eHZ sensor initialized. Ready to accept data.");
+	Serial.println("Ready to accept sensor data.");
 
 	// TODO: Calls to other groups initializations before eHZ communication?
-	// The eHZ could spam the buffer if the initilizations of the other groups
-	// take too long
+	// The eHZ could overflow the buffer if the initilizations of the other
+	// groups take too long
 }
 
+/*
+ * Shifting the bytes from the serial connection into a buffer is VERY
+ * error-resistant. Even if the connection is removed for some time,
+ * the program is able to recover correct communication by ignoring
+ * all data until a valid SML header is found again.
+ */
 void loop()
 {
-	/*
-	 * Shifting the bytes from the serial connection into a buffer is VERY
-	 * error-resistant. Even if the connection is removed for some time,
-	 * the program is able to recover correct communication by ignoring
-	 * all data until an SML header is found.
-	 */
-	// Read and shift the bytes...
-	readIntoBuffer();
+	// Read into the buffer...
+	ehzReadIntoBuffer();
 
 	// ...until it is a valid SML header!
-	if (smlBuffer[0] == 0x1B && smlBuffer[1] == 0x1B &&
-	        smlBuffer[2] == 0x1B && smlBuffer[3] == 0x1B &&
-	        smlBuffer[4] == 0x01 && smlBuffer[5] == 0x01 &&
-	        smlBuffer[6] == 0x01 &&  smlBuffer[7] == 0x01)
+	if (ehzBuffer[0] == 0x1B && ehzBuffer[1] == 0x1B &&
+	        ehzBuffer[2] == 0x1B && ehzBuffer[3] == 0x1B &&
+	        ehzBuffer[4] == 0x01 && ehzBuffer[5] == 0x01 &&
+	        ehzBuffer[6] == 0x01 && ehzBuffer[7] == 0x01)
 	{
-		Serial.println("SML HEADER");
+		// Turn on the LED to show that we're receiving an SML packet
+		digitalWrite(LED_PIN, HIGH);
 		
-		// Parse the SML
+		// Print to the console that we've found an SML header
 		long startTime = millis();
+		Serial.print("===> SML HEADER bei ");
 		Serial.print(startTime);
-		Serial.print(" -> ");
-		while (millis() < startTime + 1000)
+		Serial.println("ms");
+
+		// Find the data we need until we reach the end of the SML file
+		int i = 0;
+		while (!(ehzBuffer[0] == 0x1B && ehzBuffer[1] == 0x1B &&
+		         ehzBuffer[2] == 0x1B && ehzBuffer[3] == 0x1B &&
+		         ehzBuffer[4] == 0x1A))
 		{
-			if (ehz->available() > 0)
+			i++;
+			ehzReadIntoBuffer();
+			
+			// Check if we have the data we want
+			if (i == 169)
 			{
-				uint8_t c = ehzBlockingRead();
-				Serial.print(" 0x");
-				Serial.print(String(c, HEX));
+				Serial.println("Bei 188!");
+				Serial.println((long) (ehzBuffer[0] << 8 | ehzBuffer[1]));
 			}
+			//Serial.print(String(ehzBuffer[0], HEX));
 		}
+
+		// Print to the console that we're done parsing the SML packet
+		long endTime = millis();
 		Serial.println();
+		Serial.print("===> SML FOOTER bei ");
+		Serial.print(endTime);
+		Serial.println("ms");
+		
+		// Statistics!
+		Serial.print("Übertragung dauerte ");
+		Serial.print(endTime - startTime);
+		Serial.println("ms");
+		Serial.println();
+		
+		// Turn off the LED to show we're done parsing the SML packet
+		digitalWrite(LED_PIN, LOW);
 	}
 }
-
-/* ****************************************************************************
- * API
- * ****************************************************************************/
-struct energyMeterData
-{
-	long drawnPower;
-	long currentPower;
-};
