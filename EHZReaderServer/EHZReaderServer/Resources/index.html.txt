@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="./jquery-2.1.4.min.js"></script>
+    <script type="text/javascript">
+      
+      var rawData = [['Zeit', 'Verbrauch']];
+      var mt = 0;
+      
+      google.load("visualization", "1", {packages:["corechart"]});
+      google.setOnLoadCallback(start);
+      
+      function start()
+      {
+          setInterval(function() {
+		  getData();
+          if(rawData.length > 16) {
+            rawData.splice(1,1);
+          }
+          $('#mt').html("Z&auml;hlerstand: " + (mt/10) + " Wh");
+          drawChart();
+        }, 5000); 
+      }
+      
+      function drawChart() {
+	  
+        var data = google.visualization.arrayToDataTable(
+          rawData
+        );
+
+        var options = {
+          titleTextStyle: {color: '#333', fontSize: '30'},
+          title: 'Aktueller Verbrauch',
+          hAxis: {title: 'Zeit',  titleTextStyle: {color: '#333', fontSize: '20'}},
+          vAxis: {minValue: 0, title: 'Leistung in W', titleTextStyle: {color: '#333', fontSize: '20'}},
+          legend:{textStyle:{fontSize:'12px'}},
+          tooltip:{textStyle:{fontSize:'12px'}},
+          lineWidth: 1
+        };
+
+        var chart = new google.visualization.AreaChart(document.getElementById('chart_div'));
+        chart.draw(data, options);
+      }
+      
+      function getData()
+      {
+        $.getJSON("/data", function(data) {
+          mt = data.mt;
+          var d = new Date();
+		  rawData.push([(d.getHours () < 10 ? '0' + d.getHours () : d.getHours ()) + ":" + (d.getMinutes () < 10 ? '0' + d.getMinutes () : d.getMinutes ()) + ":" + (d.getSeconds () < 10 ? '0' + d.getSeconds () : d.getSeconds ()), data.cp]);
+        }).fail(function() {
+        }).always(function(data) {
+        });
+        
+      }
+    </script>
+  </head>
+  <body>
+    <div id="chart_div" style="width: 100%; height: 900px;"></div>
+    <div id="mt" style="font-size: 30px; font-family: Arial; text-align: center;">Z&auml;hlerstand: </div>
+  </body>
+</html>
