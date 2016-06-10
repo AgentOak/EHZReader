@@ -1,8 +1,72 @@
 #include <SoftwareSerial.h>
+/**
+ * Arduino_eHZ_Sensor
+ * v1.1, 2016-06-09
+ * Copyright (c) 2014-2016 Jan Erik Petersen
+ * GPLv3 LICENSE (See LICENSE.txt)
+ *
+ * Implements the DIN EN62056-21 Protocol and SML file format to read
+ * power data from the EHZ363LA energy meter on Arduino Uno.
+ * For other energy meters and arduinos changes might be necessary.
+ */
+/* ****************************************************************************
+ * Short & minimal SML Documentation, written by Jan Erik Petersen
+ * ****************************************************************************
+ *
+ * Every SML valList contains several valListEntries, each consisting of
+ * several fields.
+ *
+ * valList:
+ * 7X			X: count of valListEntries
+ *	<1. valListEntry>
+ *	<2. valListEntry>
+ *	...
+ *
+ * valListEntry:
+ * 7X			X: count of fields (should always be 7)
+ *	<1. field>	objName (OBIS identifier)
+ *	<2. field>	status
+ *	<3. field>	valTime
+ *	<4. field>	unit
+ *	<5. field>	scaler
+ *	<6. field>	value
+ *	<7. field>	valueSignature
+ *
+ * field:
+ * XY ZZ ZZ ..	X: 0 = String (used OBIS Manufactor ID)
+ *		   5 = signed int
+ *		   6 = unsigned int
+ *		   8 = byte array (length Y doesn't apply, used for OBIS Public Key)
+ *		Y: length of the field (including the first byte XY)
+ *		   therefore, Y = 1 means the field is empty
+ *		   Y = 0 is used to end a list (but not a valListEntry!)
+ *		Z: the actual value, length in bytes is Y - 1
+ *
+ * Example how it looks like assembled:
+ * 77
+ *	77
+ *		07 81 81 C7 82 03 FF		OBIS Manufactor ID	=> "HAG"
+ *		01				status (empty)
+ *		01				valTime (empty)
+ *		01				unit (empty)
+ *		01				scaler (empty)
+ *		04 48 41 47			value (String3)	= "HAG"
+ *		01				valueSignatur (empty)
+ *	77
+ *		07 01 00 02 08 00 FF		OBIS Meter Total	=> 3584,3 Wh
+ *		62 A0				status (uint16)	= A0
+ *		01				valTime (empty)
+ *		62 1E				unit (uint8)	= Wh
+ *		52 FF				scaler (int8)	= -1 => 10^-1 = 0,1
+ *		54 00 8C 03			value (int24)	= 35843
+ *		01				valueSignature (empty)
+ * ...
+ */
 /* ****************************************************************************
  * General constants
  * ****************************************************************************/
 #define LED_PIN 13 // The LED is used for some informational output
+#define PC_BAUDRATE 57600 // Baudrate for PC communication, using 9600 is too slow!!
 
 /* ****************************************************************************
  * EHZ constants are implementation details for the eHZ communication
@@ -11,8 +75,8 @@
 #define EHZ_TX_PIN 6 // Not used actually but for the sake of completeness
 #define EHZ_INVERSE_LOGIC false
 #define EHZ_BAUDRATE 9600
-#define EHZ_WAIT_INITIAL_DATA 50 // In ms, how long to wait for new data
-#define EHZ_RECEIVE_TIMEOUT 4 // In ms, how long to wait for new data from the eHZ
+#define EHZ_WAIT_INITIAL_DATA 50 // In ms, how long to wait for new data initially
+#define EHZ_RECEIVE_TIMEOUT 4 // In ms, how long to wait for data when receiving a packet
 
 /* ****************************************************************************
  * SML constants are bytes of the SML file format
@@ -35,10 +99,10 @@ static uint8_t OBIS_CURRENT_POWER[]	= { 0x77, 0x07, 0x01, 0x00, 0x10, 0x07, 0x00
  * ****************************************************************************/
 //String ehzManufactorId;
 //String ehzDeviceId;
-int32_t ehzMeterTotal; // divide by 10! Wh
-int32_t ehzMeterTariff1; // divide by 10! 10 Wh
-int32_t ehzMeterTariff2; // divide by 10! 10 Wh
-int32_t ehzCurrentPower; // W
+int32_t ehzMeterTotal;
+int32_t ehzMeterTariff1;
+int32_t ehzMeterTariff2;
+int32_t ehzCurrentPower;
 
 /* ****************************************************************************
  * Implementation
@@ -102,10 +166,11 @@ uint32_t ehzReadFieldInteger()
 	uint8_t length = (ehzBlockingRead() & 0x0F) - 1;
 	if (length == 0)
 	{
+		// If the field is empty we just return zero
 		return 0;
 	}
 
-	// We don't have wide enough datatypes to store more than 32bits
+	// Don't store more than 32bits, more isn't needed and harms performance
 	for (; length > 4; length--)
 	{
 		// So we cut off the front bits
@@ -116,7 +181,7 @@ uint32_t ehzReadFieldInteger()
 	uint32_t value = 0;
 	switch (length)
 	{
-			// intentional fall-through
+		// intentional fall-through
 		case 4:
 			value |= ((uint32_t) ehzBlockingRead()) << 24;
 		case 3:
@@ -134,12 +199,10 @@ void setup()
 {
 	// The LED is used for some informational output
 	pinMode(LED_PIN, OUTPUT);
-
-	// Let the other groups setup their stuff
-	G1_setup();
-	//G2_setup();
-	//G3_setup();
-	//G5_setup();
+	
+	// Initialize communication with PC
+	Serial.begin(PC_BAUDRATE);
+	while (!Serial) {}
 
 	// Starting serial connection to eHZ
 	ehz = new SoftwareSerial(EHZ_RX_PIN, EHZ_TX_PIN, EHZ_INVERSE_LOGIC);
@@ -148,12 +211,6 @@ void setup()
 
 void loop()
 {
-	// Make the sure the eHZ SoftwareSerial is listening
-	if (!ehz->isListening())
-	{
-		ehz->listen();
-	}
-
 	// We receive(d) data!
 	if (ehzSendsData(EHZ_WAIT_INITIAL_DATA))
 	{
@@ -201,11 +258,19 @@ void loop()
 						ehz->flush();
 					}
 					
-					// Notify all listeners about the new data
-					G1_notify();
-					//G2_notify();
-					//G3_notify();
-					//G5_notify();
+					// Data transmission succesful, publish new data
+					Serial.print("MT:");
+					Serial.print(ehzMeterTotal);
+					Serial.println(";");
+					Serial.print("M1:");
+					Serial.print(ehzMeterTariff1);
+					Serial.println(";");
+					Serial.print("M2:");
+					Serial.print(ehzMeterTariff2);
+					Serial.println(";");
+					Serial.print("CP:");
+					Serial.print(ehzCurrentPower);
+					Serial.println(";");
 				}
 				/*else if (memcmp(ehzBuffer, OBIS_MANUFACTOR_ID, EHZ_BUFFER_SIZE) == 0)
 				{
@@ -230,8 +295,8 @@ void loop()
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
-					ehzReadFieldInteger();
-					ehzMeterTotal = ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					ehzMeterTotal = ehzReadFieldInteger(); // The 5th field is the value
 					ehzReadFieldInteger();
 				}
 				else if (memcmp(ehzBuffer, OBIS_METER_TARIFF1, EHZ_BUFFER_SIZE) == 0)
@@ -239,8 +304,8 @@ void loop()
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
-					ehzReadFieldInteger();
-					ehzMeterTariff1 = ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					ehzMeterTariff1 = ehzReadFieldInteger(); // The 5th field is the value
 					ehzReadFieldInteger();
 				}
 				else if (memcmp(ehzBuffer, OBIS_METER_TARIFF2, EHZ_BUFFER_SIZE) == 0)
@@ -248,8 +313,8 @@ void loop()
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
-					ehzReadFieldInteger();
-					ehzMeterTariff2 = ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					ehzMeterTariff2 = ehzReadFieldInteger(); // The 5th field is the value
 					ehzReadFieldInteger();
 				}
 				else if (memcmp(ehzBuffer, OBIS_CURRENT_POWER, EHZ_BUFFER_SIZE) == 0)
@@ -257,8 +322,8 @@ void loop()
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
-					ehzReadFieldInteger();
-					int16_t rawEhzCurrentPower = ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					int16_t rawEhzCurrentPower = ehzReadFieldInteger(); // The 5th field is the value
 					// eHZ sends the current power inverted for some reason
 					ehzCurrentPower = ~rawEhzCurrentPower + 1;
 					ehzReadFieldInteger();
@@ -269,24 +334,7 @@ void loop()
 			digitalWrite(LED_PIN, LOW);
 		}
 	}
-	
-	//G1_loop();
-	//G2_loop();
-	//G3_loop();
-	//G5_loop();
+
+	// More code can be added here, since the eHZ Reader implementation is very clever non-blocking code
 }
 
-void G1_setup()
-{
-	Serial.begin(57600);
-}
- 
-void G1_notify()
-{
-	Serial.print("MT:");
-	Serial.print(ehzMeterTotal);
-	Serial.println(";");
-	Serial.print("CP:");
-	Serial.print(ehzCurrentPower);
-	Serial.println(";");
-}
