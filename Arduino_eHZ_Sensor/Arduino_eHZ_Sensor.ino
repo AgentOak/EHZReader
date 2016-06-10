@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
 /**
  * Arduino_eHZ_Sensor
- * v1.1, 2016-06-09
+ * v1.1.1, 2016-06-10
  * Copyright (c) 2014-2016 Jan Erik Petersen
  * GPLv3 LICENSE (See LICENSE.txt)
  *
@@ -66,7 +66,7 @@
  * General constants
  * ****************************************************************************/
 #define LED_PIN 13 // The LED is used for some informational output
-#define PC_BAUDRATE 57600 // Baudrate for PC communication, using 9600 is too slow!!
+#define PC_BAUDRATE 57600 // Baudrate for PC communication
 
 /* ****************************************************************************
  * EHZ constants are implementation details for the eHZ communication
@@ -97,12 +97,13 @@ static uint8_t OBIS_CURRENT_POWER[]	= { 0x77, 0x07, 0x01, 0x00, 0x10, 0x07, 0x00
 /* ****************************************************************************
  * API
  * ****************************************************************************/
+// Units and scaling depend on eHZ, PC is expected to know them beforehand
 //String ehzManufactorId;
 //String ehzDeviceId;
-int32_t ehzMeterTotal;
-int32_t ehzMeterTariff1;
-int32_t ehzMeterTariff2;
-int32_t ehzCurrentPower;
+uint32_t ehzMeterTotal;
+uint32_t ehzMeterTariff1;
+uint32_t ehzMeterTariff2;
+uint32_t ehzCurrentPower;
 
 /* ****************************************************************************
  * Implementation
@@ -211,6 +212,12 @@ void setup()
 
 void loop()
 {
+	// Make the sure the eHZ SoftwareSerial is listening
+	if (!ehz->isListening())
+	{
+		ehz->listen();
+	}
+
 	// We receive(d) data!
 	if (ehzSendsData(EHZ_WAIT_INITIAL_DATA))
 	{
