@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <title>EHZ Monitor - BS-Nieb&uuml;ll</title>
+    <!-- v1.2, Frontend (c) 2015 Dennis Boysen, 2016 Jan Erik Petersen -->
+
+    <meta name="robots" content="noindex, nofollow">
+      
+    <script type="text/javascript" src="./jquery-2.1.4.min.js"></script>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      var rawData = [['Zeit', 'Verbrauch']];
+
+      google.setOnLoadCallback(start);
+      google.load("visualization", "1", {packages:["corechart"]});
+
+      function start()
+      {
+        setTimeout(update, 0);
+        setInterval(update, CHART_UPDATE_INTERVAL);
+      }
+
+      function update()
+      {
+        $.getJSON("/data", function(data) {
+          var d = new Date();
+          rawData.push([(d.getHours () < 10 ? '0' + d.getHours () : d.getHours ()) + ":" + (d.getMinutes () < 10 ? '0' + d.getMinutes () : d.getMinutes ()) + ":" + (d.getSeconds () < 10 ? '0' + d.getSeconds () : d.getSeconds ()), parseFloat(data.cp)]);
+          
+          if (rawData.length > CHART_DATA_COUNT) {
+            rawData.splice(1,1);
+          }
+          $('#meterTotal').html("Z&auml;hlerstand: " + parseFloat(data.mt) + " Wh");
+          drawChart();
+        });
+      }
+
+      function drawChart() {
+        var data = google.visualization.arrayToDataTable(
+          rawData
+        );
+
+        /* SETTINGS: Visual options for the chart */
+        var options = {
+          chartArea: { width: "75%", height: "75%" },
+          titleTextStyle: {color: '#333', fontSize: '30'},
+          title: 'Aktueller Verbrauch',
+          hAxis: {title: 'Zeit', textStyle: {color: '#333', fontSize: '18' }, titleTextStyle: {color: '#333', fontSize: '22' }, slantedText: true, slantedTextAngle: 45, showTextEvery: 4},
+          vAxis: {minValue: 0, title: 'Leistung [Watt]', textStyle: {color: '#333', fontSize: '18' }, titleTextStyle: {color: '#333', fontSize: '22'}},
+          lineWidth: 1
+        };
+
+        var chart = new google.visualization.AreaChart(document.getElementById('powerChart'));
+        chart.draw(data, options);
+      }
+    </script>
+    <style>
+      body, html, #container {
+        height: 100%;
+        padding: 0;
+        margin: 0;
+      }
+
+      #meterTotal {
+        font-family: Arial;
+        font-size: 30px;
+        text-align: center;
+        padding-top: 0.7em;
+      }
+
+      #powerChart {
+        width: 100%;
+        min-height: 90%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="meterTotal">Z&auml;hlerstand: ... Wh</div>
+      <div id="powerChart"></div>
+    </div>
+  </body>
+</html>
