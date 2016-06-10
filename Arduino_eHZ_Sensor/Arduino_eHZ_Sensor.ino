@@ -100,7 +100,6 @@ static uint8_t OBIS_METER_TOTAL[]	= { 0x77, 0x07, 0x01, 0x00, 0x02, 0x08, 0x00, 
 static uint8_t OBIS_METER_TARIFF1[]	= { 0x77, 0x07, 0x01, 0x00, 0x02, 0x08, 0x01, 0xFF };
 static uint8_t OBIS_METER_TARIFF2[]	= { 0x77, 0x07, 0x01, 0x00, 0x02, 0x08, 0x02, 0xFF };
 static uint8_t OBIS_CURRENT_POWER[]	= { 0x77, 0x07, 0x01, 0x00, 0x10, 0x07, 0x00, 0xFF };
-static uint8_t OBIS_PUBLIC_KEY[]	= { 0x77, 0x07, 0x81, 0x81, 0xC7, 0x82, 0x05, 0xFF };
 
 /* ****************************************************************************
  * API
@@ -108,10 +107,9 @@ static uint8_t OBIS_PUBLIC_KEY[]	= { 0x77, 0x07, 0x81, 0x81, 0xC7, 0x82, 0x05, 0
 //String ehzManufactorId;
 //String ehzDeviceId;
 double ehzMeterTotal;
-//double ehzMeterTariff1;
-//double ehzMeterTariff2;
+double ehzMeterTariff1;
+double ehzMeterTariff2;
 int32_t ehzCurrentPower;
-//String ehzPublicKey;
 
 /* ****************************************************************************
  * Implementation
@@ -152,8 +150,9 @@ void ehzReadIntoBuffer()
 }
 
 /**
- * Timing based sucks. But we need to know when the connection to
- * the eHZ is removed so we don't wait for data in an endless loop.
+ * Timing based sucks. But we need to because serial is connectionless.
+ * We need to know when the cable to the eHZ is removed so we don't
+ * wait for data in an endless loop.
  */
 boolean ehzSendsData(unsigned long waitTime)
 {
@@ -174,10 +173,11 @@ uint32_t ehzReadFieldInteger()
 	uint8_t length = (ehzBlockingRead() & 0x0F) - 1;
 	if (length == 0)
 	{
+		// If the field is empty we just return zero
 		return 0;
 	}
 
-	// We don't have wide enough datatypes to store more than 32bits
+	// Don't store more than 32bits, more isn't needed and harms performance
 	for (; length > 4; length--)
 	{
 		// So we cut off the front bits
@@ -206,42 +206,24 @@ void setup()
 {
 	// The LED is used for some informational output
 	pinMode(LED_PIN, OUTPUT);
-
+	
 	// Initialize communication with PC
 	Serial.begin(PC_BAUDRATE);
 	while (!Serial) {}
-	Serial.println("Arduino EHZ363LA SML Reader");
-	Serial.println("Copyright (C) 2014  Dennis Boysen, Fabian Dellwing, Jan Erik Petersen");
-	Serial.println();
 
 	// Starting serial connection to eHZ
 	ehz = new SoftwareSerial(EHZ_RX_PIN, EHZ_TX_PIN, EHZ_INVERSE_LOGIC);
 	ehz->begin(EHZ_BAUDRATE);
-
-	// Finally
-	Serial.println("[INFO] Ready to accept sensor data.");
-
-	// TODO: Calls to other groups initializations before eHZ communication?
-	// The eHZ could overflow the buffer if the initializations of the other
-	// groups take too long
 }
 
 void loop()
 {
-	// Make the sure the eHZ SoftwareSerial is listening
-	if (!ehz->isListening())
-	{
-		ehz->listen();
-	}
-
 	// We receive(d) data!
 	if (ehzSendsData(EHZ_WAIT_INITIAL_DATA))
 	{
 		// Did we receive too much already?
 		if (ehz->overflow())
 		{
-			Serial.println("[ERROR] eHZ rx buffer overflow, flushing data...");
-
 			// Flush down all the data we receive
 			while (ehzSendsData(EHZ_RECEIVE_TIMEOUT))
 			{
@@ -254,22 +236,25 @@ void loop()
 			digitalWrite(LED_PIN, HIGH);
 
 			// Until we find a valid SML header...
-			/*while (memcmp(ehzBuffer, SML_HEADER, sizeof(SML_HEADER)) != 0)
+			while (memcmp(ehzBuffer, SML_HEADER, sizeof(SML_HEADER)) != 0)
 			{
-				// ...read into the buffer
+				// ... check if the eHZ still sends data
+				if (!ehzSendsData(EHZ_RECEIVE_TIMEOUT))
+				{
+					// If not, the connection is possibly broken
+					return;
+				}
+				
+				// ... else, read into the buffer
 				ehzReadIntoBuffer();
-			}*/
-
-			// TODO: Remove debugging information
-			long startTime = millis();
-			Serial.print("===> TRANSMISSION START bei ");
-			Serial.print(startTime);
-			Serial.println("ms");
+			}
 
 			// As long as the eHZ sends data
 			while (ehzSendsData(EHZ_RECEIVE_TIMEOUT))
 			{
+				// Read byte one for one into the buffer
 				ehzReadIntoBuffer();
+				// And check every sequence for an SML/OBIS identifier
 
 				// If we reached the end of the file...
 				if (memcmp(ehzBuffer, SML_FOOTER, sizeof(SML_FOOTER)) == 0)
@@ -280,8 +265,7 @@ void loop()
 						ehz->flush();
 					}
 					
-					// TODO: Publish the new data!
-					Serial.println("Data published.");
+					Serial.println("SML End found.");
 				}
 				/*else if (memcmp(ehzBuffer, OBIS_MANUFACTOR_ID, EHZ_BUFFER_SIZE) == 0)
 				{
@@ -306,56 +290,56 @@ void loop()
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
-					ehzReadFieldInteger();
-					ehzMeterTotal = ((double) ehzReadFieldInteger()) / 10.;
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					ehzMeterTotal = ((double) ehzReadFieldInteger()) / 10.; // The 5th field is the value
 					ehzReadFieldInteger();
 					
-					Serial.print("Meter Total: ");
+					Serial.print("Meter Total: "); // Output the value for debugging purposes
 					Serial.print(ehzMeterTotal);
 					Serial.println(" Wh");
 				}
-				/*else if (memcmp(ehzBuffer, OBIS_METER_TARIFF1, EHZ_BUFFER_SIZE) == 0)
+				else if (memcmp(ehzBuffer, OBIS_METER_TARIFF1, EHZ_BUFFER_SIZE) == 0)
 				{
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					ehzMeterTariff1 = ((double) ehzReadFieldInteger()) / 10.; // The 5th field is the value
 					ehzReadFieldInteger();
-					ehzMeterTariff1 = ((double) ehzReadFieldInteger()) / 10.;
-					ehzReadFieldInteger();
+					
+					Serial.print("Meter Tariff 1: "); // Output the value for debugging purposes
+					Serial.print(ehzMeterTariff1);
+					Serial.println(" Wh");
 				}
 				else if (memcmp(ehzBuffer, OBIS_METER_TARIFF2, EHZ_BUFFER_SIZE) == 0)
 				{
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					ehzMeterTariff2 = ((double) ehzReadFieldInteger()) / 10.; // The 5th field is the value
 					ehzReadFieldInteger();
-					ehzMeterTariff2 = ((double) ehzReadFieldInteger()) / 10.;
-					ehzReadFieldInteger();
-				}*/
+					
+					Serial.print("Meter Tariff 2: "); // Output the value for debugging purposes
+					Serial.print(ehzMeterTariff2);
+					Serial.println(" Wh");
+				}
 				else if (memcmp(ehzBuffer, OBIS_CURRENT_POWER, EHZ_BUFFER_SIZE) == 0)
 				{
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
 					ehzReadFieldInteger();
-					ehzReadFieldInteger();
-					int16_t rawEhzCurrentPower = ehzReadFieldInteger();
+					ehzReadFieldInteger(); // Scaler is ignored to minimize filesize
+					int16_t rawEhzCurrentPower = ehzReadFieldInteger(); // The 5th field is the value
 					// eHZ sends the current power inverted for some reason
-					ehzMeterTotal = ~rawEhzCurrentPower + 1;
+					ehzCurrentPower = ~rawEhzCurrentPower + 1;
 					ehzReadFieldInteger();
 					
-					Serial.print("Current Power: ");
-					Serial.print(ehzMeterTotal);
+					Serial.print("Current Power: "); // Output the value for debugging purposes
+					Serial.print(ehzCurrentPower);
 					Serial.println(" W");
 				}
 			}
-
-			// TODO: Remove debugging information
-			long endTime = millis();
-			Serial.print("===> END OF TRANSMISSION bei ");
-			Serial.print(endTime);
-			Serial.print("ms (Dauerte ");
-			Serial.print(endTime - startTime);
-			Serial.println("ms)");
 
 			// Turn off the LED to show we're done receiving data
 			digitalWrite(LED_PIN, LOW);
