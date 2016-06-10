@@ -8,13 +8,13 @@ namespace EHZReaderServer
 {
     class Program
     {
-        const string VERSION = "1.2";
+        const string VERSION = "1.2.1";
 
         static void Main(string[] args)
         {
             Console.WriteLine("###############################################################################");
             Console.WriteLine("### BS-Niebuell eHZ Reader Server");
-            Console.WriteLine("### v" + VERSION + " (2016-06-09)");
+            Console.WriteLine("### v" + VERSION + " (2016-06-10)");
             Console.WriteLine("### (c) 2015-2016 Jan Erik Petersen");
             Console.WriteLine("###############################################################################");
             Console.WriteLine("### Settings (Change in EHZReaderServer.exe.config):");
@@ -28,6 +28,7 @@ namespace EHZReaderServer
             {
                 Program.Log("Main", "HttpListener is not supported on this platform.");
                 Program.Log("Main", "You need Windows XP SP2, Server 2003 or later!");
+                Console.ReadLine();
                 Environment.Exit(100);
             }
 
@@ -35,6 +36,7 @@ namespace EHZReaderServer
             {
                 Program.Log("Main", "No serial ports found! Install Arduino Drivers to");
                 Program.Log("Main", "be able to communicate with Arduinos over serial!");
+                Console.ReadLine();
                 Environment.Exit(101);
             }
 
