@@ -10,6 +10,7 @@ Arduino_eHZ_Sensor
 * Send own version over serial, so a program can determine if it should be updated
 * Send more of the SML Data (Unit, Scaler, etc.) instead of letting the program guess
 * Some sort of identifier that can be given in the source code, to make multiple Arduinos differentiable by software
+* Prevent overflow bug with millis() after 50 days runtime
 
 
 EHZReaderServer

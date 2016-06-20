@@ -8,17 +8,20 @@
     <Setting Name="serialBaudrate" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">57600</Value>
     </Setting>
-    <Setting Name="ehzMeterDivisor" Type="System.Single" Scope="User">
-      <Value Profile="(Default)">10</Value>
-    </Setting>
-    <Setting Name="ehzPowerDivisor" Type="System.Single" Scope="User">
+    <Setting Name="ehzMeterDecimalPlaces" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">1</Value>
+    </Setting>
+    <Setting Name="ehzPowerDecimalPlaces" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
     </Setting>
     <Setting Name="chartUpdateInterval" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">4000</Value>
     </Setting>
     <Setting Name="chartDataCount" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">48</Value>
+    </Setting>
+    <Setting Name="chartLabelEvery" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">4</Value>
     </Setting>
   </Settings>
 </SettingsFile>

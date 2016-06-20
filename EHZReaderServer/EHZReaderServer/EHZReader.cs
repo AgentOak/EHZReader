@@ -77,19 +77,19 @@ namespace EHZReaderServer
                     switch (type)
                     {
                         case "MT:":
-                            this.lastMeterTotal = Int64.Parse(data.Substring(3).Split(';')[0]) / Properties.Settings.Default.ehzMeterDivisor;
+                            this.lastMeterTotal = (float) (Int64.Parse(data.Substring(3).Split(';')[0]) / Math.Pow(10, Properties.Settings.Default.ehzMeterDecimalPlaces));
                             Program.Log(this.name, "Received data: MT=" + this.lastMeterTotal);
                             break;
                         case "M1:":
-                            this.lastMeterTariff1 = Int64.Parse(data.Substring(3).Split(';')[0]) / Properties.Settings.Default.ehzMeterDivisor;
+                            this.lastMeterTariff1 = (float) (Int64.Parse(data.Substring(3).Split(';')[0]) / Math.Pow(10, Properties.Settings.Default.ehzMeterDecimalPlaces));
                             Program.Log(this.name, "Received data: M1=" + this.lastMeterTariff1);
                             break;
                         case "M2:":
-                            this.lastMeterTariff2 = Int64.Parse(data.Substring(3).Split(';')[0]) / Properties.Settings.Default.ehzMeterDivisor;
+                            this.lastMeterTariff2 = (float) (Int64.Parse(data.Substring(3).Split(';')[0]) / Math.Pow(10, Properties.Settings.Default.ehzMeterDecimalPlaces));
                             Program.Log(this.name, "Received data: M2=" + this.lastMeterTariff2);
                             break;
                         case "CP:":
-                            this.lastCurrentPower = Int64.Parse(data.Substring(3).Split(';')[0]) / Properties.Settings.Default.ehzPowerDivisor;
+                            this.lastCurrentPower = (float) (Int64.Parse(data.Substring(3).Split(';')[0]) / Math.Pow(10, Properties.Settings.Default.ehzPowerDecimalPlaces));
                             Program.Log(this.name, "Received data: CP=" + this.lastCurrentPower);
                             break;
                         default:

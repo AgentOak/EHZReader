@@ -49,25 +49,25 @@ namespace EHZReaderServer.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("10")]
-        public float ehzMeterDivisor {
+        [global::System.Configuration.DefaultSettingValueAttribute("1")]
+        public int ehzMeterDecimalPlaces {
             get {
-                return ((float)(this["ehzMeterDivisor"]));
+                return ((int)(this["ehzMeterDecimalPlaces"]));
             }
             set {
-                this["ehzMeterDivisor"] = value;
+                this["ehzMeterDecimalPlaces"] = value;
             }
         }
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("1")]
-        public float ehzPowerDivisor {
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int ehzPowerDecimalPlaces {
             get {
-                return ((float)(this["ehzPowerDivisor"]));
+                return ((int)(this["ehzPowerDecimalPlaces"]));
             }
             set {
-                this["ehzPowerDivisor"] = value;
+                this["ehzPowerDecimalPlaces"] = value;
             }
         }
         
@@ -92,6 +92,18 @@ namespace EHZReaderServer.Properties {
             }
             set {
                 this["chartDataCount"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("4")]
+        public int chartLabelEvery {
+            get {
+                return ((int)(this["chartLabelEvery"]));
+            }
+            set {
+                this["chartLabelEvery"] = value;
             }
         }
     }

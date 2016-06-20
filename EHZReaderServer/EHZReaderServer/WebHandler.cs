@@ -86,14 +86,21 @@ namespace EHZReaderServer
                 response.ContentType = "text/html; charset=utf-8";
                 response.StatusCode = 200;
                 content = Properties.Resources.index_html
-                    .Replace("CHART_UPDATE_INTERVAL", Properties.Settings.Default.chartUpdateInterval.ToString())
-                    .Replace("CHART_DATA_COUNT", Properties.Settings.Default.chartDataCount.ToString());
+                    .Replace("##DATA_METER_TOTAL##", ehzReader.GetMeterTotal().ToString(CultureInfo.InvariantCulture))
+                    .Replace("##DATA_METER_TARIFF_1##", ehzReader.GetMeterTariff1().ToString(CultureInfo.InvariantCulture))
+                    .Replace("##DATA_METER_TARIFF_2##", ehzReader.GetMeterTariff2().ToString(CultureInfo.InvariantCulture))
+                    .Replace("##DATA_CURRENT_POWER##", ehzReader.GetCurrentPower().ToString(CultureInfo.InvariantCulture))
+                    .Replace("##CONF_EHZ_METER_DECIMAL_PLACES##", Properties.Settings.Default.ehzMeterDecimalPlaces.ToString())
+                    .Replace("##CONF_EHZ_POWER_DECIMAL_PLACES##", Properties.Settings.Default.ehzPowerDecimalPlaces.ToString())
+                    .Replace("##CONF_CHART_UPDATE_INTERVAL##", Properties.Settings.Default.chartUpdateInterval.ToString())
+                    .Replace("##CONF_CHART_DATA_COUNT##", Properties.Settings.Default.chartDataCount.ToString())
+                    .Replace("##CONF_CHART_LABEL_EVERY##", Properties.Settings.Default.chartLabelEvery.ToString());
             }
-            else if (request.Url.AbsolutePath.Equals("/jquery-2.1.4.min.js"))
+            else if (request.Url.AbsolutePath.Equals("/jquery-2.2.4.min.js"))
             {
                 response.ContentType = "application/javascript; charset=utf-8";
                 response.StatusCode = 200;
-                content = Properties.Resources.jquery_2_1_4_min_js;
+                content = Properties.Resources.jquery_2_2_4_min_js;
             }
             else
             {

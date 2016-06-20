@@ -62,21 +62,19 @@ namespace EHZReaderServer.Properties {
         
         /// <summary>
         ///   Sucht eine lokalisierte Zeichenfolge, die &lt;!DOCTYPE html&gt;
-        ///&lt;html&gt;
+        ///&lt;html lang=&quot;de&quot;&gt;
         ///  &lt;head&gt;
-        ///    &lt;title&gt;BS-Nieb&amp;uuml;ll - Smart Meter Monitoring&lt;/title&gt;
-        ///    &lt;script type=&quot;text/javascript&quot; src=&quot;https://www.google.com/jsapi&quot;&gt;&lt;/script&gt;
-        ///    &lt;script type=&quot;text/javascript&quot; src=&quot;./jquery-2.1.4.min.js&quot;&gt;&lt;/script&gt;
+        ///    &lt;meta charset=&quot;UTF-8&quot;&gt;
+        ///    &lt;title&gt;EHZ Monitor - BS-Nieb&amp;uuml;ll&lt;/title&gt;
+        ///    &lt;!-- v1.2, Frontend (c) 2015 Dennis Boysen, 2016 Jan Erik Petersen --&gt;
+        ///
+        ///    &lt;meta name=&quot;robots&quot; content=&quot;noindex, nofollow&quot;&gt;
+        ///      
+        ///    &lt;script type=&quot;text/javascript&quot; src=&quot;./jquery-2.2.4.min.js&quot;&gt;&lt;/script&gt;
         ///    &lt;script type=&quot;text/javascript&quot;&gt;
-        ///      var rawData = [[&apos;Zeit&apos;, &apos;Verbrauch&apos;]];
-        ///      var mt = 0;
-        ///      
-        ///      google.load(&quot;visualization&quot;, &quot;1&quot;, {packages:[&quot;corechart&quot;]});
-        ///      google.setOnLoadCallback(start);
-        ///      
-        ///      function start()
+        ///      function updateMeterTotal(meterTotal)
         ///      {
-        ///   [Rest der Zeichenfolge wurde abgeschnitten]&quot;; ähnelt.
+        ///        $(&apos;#meterTotal&apos;).html(&quot;Z&amp;auml;hlerstand: &quot; + meterTotal.toFixed(##CONF_EHZ_M [Rest der Zeichenfolge wurde abgeschnitten]&quot;; ähnelt.
         /// </summary>
         internal static string index_html {
             get {
@@ -85,12 +83,12 @@ namespace EHZReaderServer.Properties {
         }
         
         /// <summary>
-        ///   Sucht eine lokalisierte Zeichenfolge, die /*! jQuery v2.1.4 | (c) 2005, 2015 jQuery Foundation, Inc. | jquery.org/license */
-        ///!function(a,b){&quot;object&quot;==typeof module&amp;&amp;&quot;object&quot;==typeof module.exports?module.exports=a.document?b(a,!0):function(a){if(!a.document)throw new Error(&quot;jQuery requires a window with a document&quot;);return b(a)}:b(a)}(&quot;undefined&quot;!=typeof window?window:this,function(a,b){var c=[],d=c.slice,e=c.concat,f=c.push,g=c.indexOf,h={},i=h.toString,j=h.hasOwnProperty,k={},l=a.document,m=&quot;2.1.4&quot;,n=function(a,b){return new n.fn.init(a,b)},o=/^[ [Rest der Zeichenfolge wurde abgeschnitten]&quot;; ähnelt.
+        ///   Sucht eine lokalisierte Zeichenfolge, die /*! jQuery v2.2.4 | (c) jQuery Foundation | jquery.org/license */
+        ///!function(a,b){&quot;object&quot;==typeof module&amp;&amp;&quot;object&quot;==typeof module.exports?module.exports=a.document?b(a,!0):function(a){if(!a.document)throw new Error(&quot;jQuery requires a window with a document&quot;);return b(a)}:b(a)}(&quot;undefined&quot;!=typeof window?window:this,function(a,b){var c=[],d=a.document,e=c.slice,f=c.concat,g=c.push,h=c.indexOf,i={},j=i.toString,k=i.hasOwnProperty,l={},m=&quot;2.2.4&quot;,n=function(a,b){return new n.fn.init(a,b)},o=/^[\s\uFEFF\xA0]+|[ [Rest der Zeichenfolge wurde abgeschnitten]&quot;; ähnelt.
         /// </summary>
-        internal static string jquery_2_1_4_min_js {
+        internal static string jquery_2_2_4_min_js {
             get {
-                return ResourceManager.GetString("jquery_2_1_4_min_js", resourceCulture);
+                return ResourceManager.GetString("jquery_2_2_4_min_js", resourceCulture);
             }
         }
     }
